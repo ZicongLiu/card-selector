@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "credit-card-selector",
+      "runtimeExecutable": "/Users/zicol/.nvm/versions/node/v20.19.0/bin/npx",
+      "runtimeArgs": ["expo", "start", "--web"],
+      "port": 8081,
+      "autoPort": false
+    }
+  ]
+}
