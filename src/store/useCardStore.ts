@@ -3,17 +3,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CreditCard, CategoryKey } from '../types';
 import { PRELOADED_CARDS } from '../data/cards';
 
-const STORAGE_KEY = 'user_cards';
+const STORAGE_KEY = 'wallet_cards'; // stores IDs of selected preloaded + full custom cards
 
 interface CardStore {
-  cards: CreditCard[];
+  cards: CreditCard[]; // only cards the user has added to their wallet
   loaded: boolean;
   loadCards: () => Promise<void>;
   addCard: (card: CreditCard) => void;
-  updateCard: (card: CreditCard) => void;
   removeCard: (id: string) => void;
-  getBestCard: (category: CategoryKey) => { card: CreditCard; multiplier: number } | null;
+  hasCard: (id: string) => boolean;
   getRankedCards: (category: CategoryKey) => { card: CreditCard; multiplier: number }[];
+  getBestCard: (category: CategoryKey) => { card: CreditCard; multiplier: number } | null;
+}
+
+interface StoredWallet {
+  selectedIds: string[];         // IDs of chosen preloaded cards
+  customCards: CreditCard[];     // fully stored custom cards
 }
 
 export const useCardStore = create<CardStore>((set, get) => ({
@@ -23,49 +28,48 @@ export const useCardStore = create<CardStore>((set, get) => ({
   loadCards: async () => {
     try {
       const json = await AsyncStorage.getItem(STORAGE_KEY);
-      const userCards: CreditCard[] = json ? JSON.parse(json) : [];
-      const allCards = [
-        ...PRELOADED_CARDS,
-        ...userCards.filter((uc) => !PRELOADED_CARDS.find((pc) => pc.id === uc.id)),
-      ];
-      set({ cards: allCards, loaded: true });
+      if (!json) {
+        set({ cards: [], loaded: true });
+        return;
+      }
+      const wallet: StoredWallet = JSON.parse(json);
+      const selected = PRELOADED_CARDS.filter((c) => wallet.selectedIds.includes(c.id));
+      set({ cards: [...selected, ...(wallet.customCards ?? [])], loaded: true });
     } catch {
-      set({ cards: PRELOADED_CARDS, loaded: true });
+      set({ cards: [], loaded: true });
     }
   },
 
   addCard: (card) => {
     const cards = [...get().cards, card];
     set({ cards });
-    const userCards = cards.filter((c) => !c.isPreloaded);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(userCards));
-  },
-
-  updateCard: (card) => {
-    const cards = get().cards.map((c) => (c.id === card.id ? card : c));
-    set({ cards });
-    const userCards = cards.filter((c) => !c.isPreloaded);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(userCards));
+    _persist(cards);
   },
 
   removeCard: (id) => {
     const cards = get().cards.filter((c) => c.id !== id);
     set({ cards });
-    const userCards = cards.filter((c) => !c.isPreloaded);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(userCards));
+    _persist(cards);
   },
 
-  getRankedCards: (category) => {
-    return get()
+  hasCard: (id) => get().cards.some((c) => c.id === id),
+
+  getRankedCards: (category) =>
+    get()
       .cards.map((card) => ({
         card,
         multiplier: card.rewards[category] ?? card.defaultReward,
       }))
-      .sort((a, b) => b.multiplier - a.multiplier);
-  },
+      .sort((a, b) => b.multiplier - a.multiplier),
 
   getBestCard: (category) => {
     const ranked = get().getRankedCards(category);
     return ranked.length > 0 ? ranked[0] : null;
   },
 }));
+
+function _persist(cards: CreditCard[]) {
+  const selectedIds = cards.filter((c) => c.isPreloaded).map((c) => c.id);
+  const customCards = cards.filter((c) => !c.isPreloaded);
+  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ selectedIds, customCards }));
+}

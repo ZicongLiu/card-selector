@@ -111,14 +111,24 @@ export function MyCardsScreen() {
         }
       />
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('AddCard')}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.fabPlus}>＋</Text>
-        <Text style={styles.fabLabel}>Add Custom Card</Text>
-      </TouchableOpacity>
+      <View style={styles.fabRow}>
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => navigation.navigate('BrowseCards')}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.fabPlus}>⊕</Text>
+          <Text style={styles.fabLabel}>Browse Cards</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.fabSecondary}
+          onPress={() => navigation.navigate('AddCard')}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.fabPlus}>✏️</Text>
+          <Text style={styles.fabLabelSecondary}>Custom</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -220,24 +230,42 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', marginBottom: 8 },
   emptyBody: { fontSize: 14, color: '#6B7A99', textAlign: 'center', lineHeight: 21 },
 
-  fab: {
+  fabRow: {
     position: 'absolute',
     bottom: 24,
     left: 20,
     right: 20,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  fab: {
+    flex: 1,
     backgroundColor: '#4361EE',
     borderRadius: 18,
     paddingVertical: 17,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
     shadowColor: '#4361EE',
     shadowOpacity: 0.5,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
     elevation: 10,
   },
-  fabPlus: { color: '#FFF', fontSize: 22, fontWeight: '300', lineHeight: 24 },
-  fabLabel: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+  fabSecondary: {
+    flex: 1,
+    backgroundColor: '#161B24',
+    borderRadius: 18,
+    paddingVertical: 17,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#2E3F6E',
+  },
+  fabPlus: { color: '#FFF', fontSize: 20, fontWeight: '300', lineHeight: 22 },
+  fabLabel: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  fabLabelSecondary: { color: '#7B93FF', fontSize: 14, fontWeight: '700' },
 });

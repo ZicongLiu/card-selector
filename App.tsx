@@ -7,22 +7,25 @@ import { Text } from 'react-native';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { MyCardsScreen } from './src/screens/MyCardsScreen';
 import { AddCardScreen } from './src/screens/AddCardScreen';
+import { BrowseCardsScreen } from './src/screens/BrowseCardsScreen';
+import { BenefitsScreen } from './src/screens/BenefitsScreen';
 import { useCardStore } from './src/store/useCardStore';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
+const HEADER_OPTS = {
+  headerStyle: { backgroundColor: '#0D1117' },
+  headerTintColor: '#FFFFFF',
+  headerShadowVisible: false,
+  headerTitleStyle: { fontWeight: '700' as const },
+};
+
 function CardsStack() {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: '#0D1117' },
-        headerTintColor: '#FFFFFF',
-        headerShadowVisible: false,
-        headerTitleStyle: { fontWeight: '700' },
-      }}
-    >
+    <Stack.Navigator screenOptions={HEADER_OPTS}>
       <Stack.Screen name="MyCards" component={MyCardsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="BrowseCards" component={BrowseCardsScreen} options={{ title: 'Browse Cards' }} />
       <Stack.Screen name="AddCard" component={AddCardScreen} options={{ title: 'Add Custom Card' }} />
     </Stack.Navigator>
   );
@@ -31,9 +34,7 @@ function CardsStack() {
 export default function App() {
   const loadCards = useCardStore((s) => s.loadCards);
 
-  useEffect(() => {
-    loadCards();
-  }, []);
+  useEffect(() => { loadCards(); }, []);
 
   return (
     <NavigationContainer theme={DarkTheme}>
@@ -50,7 +51,7 @@ export default function App() {
           },
           tabBarActiveTintColor: '#4361EE',
           tabBarInactiveTintColor: '#3A4A66',
-          tabBarLabelStyle: { fontSize: 11, fontWeight: '700', marginBottom: 4 },
+          tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
         }}
       >
         <Tab.Screen
@@ -58,9 +59,15 @@ export default function App() {
           component={HomeScreen}
           options={{
             title: 'Best Card',
-            tabBarIcon: ({ focused }) => (
-              <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.45 }}>💳</Text>
-            ),
+            tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>💳</Text>,
+          }}
+        />
+        <Tab.Screen
+          name="Benefits"
+          component={BenefitsScreen}
+          options={{
+            title: 'Benefits',
+            tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>🎁</Text>,
           }}
         />
         <Tab.Screen
@@ -68,9 +75,7 @@ export default function App() {
           component={CardsStack}
           options={{
             title: 'My Cards',
-            tabBarIcon: ({ focused }) => (
-              <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.45 }}>🗂️</Text>
-            ),
+            tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>🗂️</Text>,
           }}
         />
       </Tab.Navigator>

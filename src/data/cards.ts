@@ -61,6 +61,20 @@ export const PRELOADED_CARDS: CreditCard[] = [
     isPreloaded: true,
   },
 
+  {
+    id: 'amex-marriott-brilliant',
+    name: 'Marriott Bonvoy Brilliant',
+    issuer: 'American Express',
+    color: '#8B1A1A',
+    textColor: '#FFFFFF',
+    rewards: {
+      travel: 6,    // Marriott Bonvoy hotels
+      dining: 3,
+    },
+    defaultReward: 2,
+    isPreloaded: true,
+  },
+
   // ── Chase ─────────────────────────────────────────────────────────────────
   {
     id: 'chase-sapphire-preferred',
@@ -114,7 +128,8 @@ export const PRELOADED_CARDS: CreditCard[] = [
       dining: 3,
       drugstore: 3,
       travel: 5, // via Chase Travel
-      // Rotating 5% categories not modeled (changes quarterly)
+      online_shopping: 5, // Q2 2026 rotating 5%: Amazon, Whole Foods
+      groceries: 5,       // Q2 2026 rotating 5%: Whole Foods
     },
     defaultReward: 1,
     isPreloaded: true,
@@ -212,9 +227,141 @@ export const PRELOADED_CARDS: CreditCard[] = [
     issuer: 'Bank of America',
     color: '#E31837',
     textColor: '#FFFFFF',
-    rewards: {
-      groceries: 2,
-    },
+    rewards: { groceries: 2 },
+    defaultReward: 1,
+    isPreloaded: true,
+  },
+
+  // ── Hilton (Amex) ─────────────────────────────────────────────────────────
+  {
+    id: 'amex-hilton-aspire',
+    name: 'Hilton Honors Aspire',
+    issuer: 'American Express',
+    color: '#002B5C',
+    textColor: '#FFFFFF',
+    rewards: { travel: 14, dining: 7 },
+    defaultReward: 3,
+    isPreloaded: true,
+  },
+  {
+    id: 'amex-hilton-surpass',
+    name: 'Hilton Honors Surpass',
+    issuer: 'American Express',
+    color: '#1A4B8C',
+    textColor: '#FFFFFF',
+    rewards: { travel: 12, dining: 6, groceries: 6, gas: 6, online_shopping: 4 },
+    defaultReward: 3,
+    isPreloaded: true,
+  },
+
+  // ── Marriott (Chase) ──────────────────────────────────────────────────────
+  {
+    id: 'chase-marriott-boundless',
+    name: 'Marriott Bonvoy Boundless',
+    issuer: 'Chase',
+    color: '#6B1A2A',
+    textColor: '#FFFFFF',
+    rewards: { travel: 6, dining: 3, groceries: 3, gas: 3 },
+    defaultReward: 2,
+    isPreloaded: true,
+  },
+  {
+    id: 'chase-marriott-bold',
+    name: 'Marriott Bonvoy Bold',
+    issuer: 'Chase',
+    color: '#005F73',
+    textColor: '#FFFFFF',
+    rewards: { travel: 3 },
+    defaultReward: 1,
+    isPreloaded: true,
+  },
+
+  // ── Hyatt (Chase) ─────────────────────────────────────────────────────────
+  {
+    id: 'chase-hyatt',
+    name: 'World of Hyatt',
+    issuer: 'Chase',
+    color: '#1B3A4B',
+    textColor: '#FFFFFF',
+    rewards: { travel: 4, dining: 2, transit: 2 },
+    defaultReward: 1,
+    isPreloaded: true,
+  },
+
+  // ── IHG (Chase) ───────────────────────────────────────────────────────────
+  {
+    id: 'chase-ihg-premier',
+    name: 'IHG One Rewards Premier',
+    issuer: 'Chase',
+    color: '#005596',
+    textColor: '#FFFFFF',
+    rewards: { travel: 10, dining: 5, gas: 5 },
+    defaultReward: 3,
+    isPreloaded: true,
+  },
+
+  // ── Airline cards ─────────────────────────────────────────────────────────
+  {
+    id: 'amex-delta-platinum',
+    name: 'Delta SkyMiles Platinum',
+    issuer: 'American Express',
+    color: '#003366',
+    textColor: '#FFFFFF',
+    rewards: { travel: 3, dining: 2, gas: 2 },
+    defaultReward: 1,
+    isPreloaded: true,
+  },
+  {
+    id: 'chase-united-explorer',
+    name: 'United Explorer',
+    issuer: 'Chase',
+    color: '#005DAA',
+    textColor: '#FFFFFF',
+    rewards: { travel: 2, dining: 2, gas: 2, groceries: 2, drugstore: 2 },
+    defaultReward: 1,
+    isPreloaded: true,
+  },
+  {
+    id: 'chase-southwest-priority',
+    name: 'Southwest Rapid Rewards Priority',
+    issuer: 'Chase',
+    color: '#304CB2',
+    textColor: '#FFFFFF',
+    rewards: { travel: 3, dining: 2, groceries: 2 },
+    defaultReward: 1,
+    isPreloaded: true,
+  },
+  {
+    id: 'citi-aa-platinum',
+    name: 'AAdvantage Platinum Select',
+    issuer: 'Citi',
+    color: '#0078D7',
+    textColor: '#FFFFFF',
+    rewards: { travel: 2, dining: 2, gas: 2 },
+    defaultReward: 1,
+    isPreloaded: true,
+  },
+
+  // ── Alaska Airlines ───────────────────────────────────────────────────────
+  {
+    id: 'bofa-alaska-airlines',
+    name: 'Alaska Airlines Visa Signature',
+    issuer: 'Bank of America',
+    color: '#01426A',
+    textColor: '#FFFFFF',
+    rewards: { travel: 3, transit: 2, gas: 2 },
+    defaultReward: 1,
+    isPreloaded: true,
+  },
+
+  // ── Wyndham ───────────────────────────────────────────────────────────────
+  {
+    id: 'barclays-wyndham-earner',
+    name: 'Wyndham Rewards Earner',
+    issuer: 'Barclays',
+    color: '#003F72',
+    textColor: '#FFFFFF',
+    rewards: { travel: 5, gas: 2, dining: 2 },
     defaultReward: 1,
     isPreloaded: true,
   },

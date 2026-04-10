@@ -14,6 +14,8 @@ import { searchMerchants } from '../data/merchants';
 import { REWARDS_LAST_VERIFIED } from '../data/cards';
 import { CategoryKey, MerchantEntry } from '../types';
 import { CardVisual } from '../components/CardVisual';
+import { SyncModal } from '../components/SyncModal';
+import { PayModal } from '../components/PayModal';
 
 export function HomeScreen() {
   const { getRankedCards, cards } = useCardStore();
@@ -22,6 +24,8 @@ export function HomeScreen() {
   const [suggestions, setSuggestions] = useState<MerchantEntry[]>([]);
   const [resolvedCategory, setResolvedCategory] = useState<CategoryKey | null>(null);
   const [mode, setMode] = useState<'category' | 'merchant'>('category');
+  const [syncVisible, setSyncVisible] = useState(false);
+  const [payCard, setPayCard] = useState<{ card: any; multiplier: number } | null>(null);
 
   const activeCategory = mode === 'category' ? selectedCategory : resolvedCategory;
   const ranked = activeCategory ? getRankedCards(activeCategory) : [];
@@ -48,13 +52,27 @@ export function HomeScreen() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
+      <SyncModal visible={syncVisible} onClose={() => setSyncVisible(false)} />
+      <PayModal
+        visible={!!payCard}
+        card={payCard?.card ?? null}
+        multiplier={payCard?.multiplier}
+        onClose={() => setPayCard(null)}
+      />
+
       {/* Hero header */}
       <View style={styles.hero}>
         <Text style={styles.heroEyebrow}>SMART WALLET</Text>
         <Text style={styles.heroTitle}>Which card{'\n'}should I use?</Text>
-        <View style={styles.verifiedBadge}>
-          <Text style={styles.verifiedDot}>●</Text>
-          <Text style={styles.verifiedText}>Rates verified {REWARDS_LAST_VERIFIED}</Text>
+        <View style={styles.heroBottom}>
+          <TouchableOpacity style={styles.verifiedBadge} onPress={() => setSyncVisible(true)} activeOpacity={0.75}>
+            <Text style={styles.verifiedDot}>●</Text>
+            <Text style={styles.verifiedText}>Rates verified {REWARDS_LAST_VERIFIED}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.syncBtn} onPress={() => setSyncVisible(true)} activeOpacity={0.8}>
+            <Text style={styles.syncIcon}>↻</Text>
+            <Text style={styles.syncText}>Sync</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -169,6 +187,14 @@ export function HomeScreen() {
             <View style={styles.resultsLabelLine} />
           </View>
           <CardVisual card={best.card} multiplier={best.multiplier} rank={0} />
+          <TouchableOpacity
+            style={styles.payBtn}
+            onPress={() => setPayCard(best)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.payBtnText}>Pay with this card</Text>
+            <Text style={styles.payBtnArrow}>›</Text>
+          </TouchableOpacity>
 
           {others.length > 0 && (
             <>
@@ -199,6 +225,20 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D1117' },
   content: { paddingBottom: 40 },
+  payBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#000000',
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+    gap: 6,
+  },
+  payBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  payBtnArrow: { color: '#6B7A99', fontSize: 20, lineHeight: 22 },
 
   // Hero
   hero: {
@@ -222,11 +262,11 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     marginBottom: 14,
   },
+  heroBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    alignSelf: 'flex-start',
     backgroundColor: '#1A2335',
     borderRadius: 20,
     paddingHorizontal: 12,
@@ -236,6 +276,19 @@ const styles = StyleSheet.create({
   },
   verifiedDot: { fontSize: 8, color: '#4CAF50' },
   verifiedText: { fontSize: 11, color: '#8892A4', fontWeight: '500' },
+  syncBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#1A2240',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: '#2E3F6E',
+  },
+  syncIcon: { fontSize: 15, color: '#7B93FF', fontWeight: '600' },
+  syncText: { fontSize: 12, color: '#7B93FF', fontWeight: '700' },
 
   // Mode pill
   pill: {
