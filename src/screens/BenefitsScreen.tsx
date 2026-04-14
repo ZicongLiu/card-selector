@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCardStore } from '../store/useCardStore';
-import { useProfileStore } from '../store/useProfileStore';
 import {
   BENEFITS,
   BENEFIT_CATEGORY_ICONS,
@@ -101,7 +100,7 @@ export function BenefitsScreen() {
     }
     setChecks(updated);
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    useProfileStore.getState().pushBenefits(updated);
+    // TODO #6: push to Supabase when connected
   };
 
   const myBenefits = useMemo(() =>

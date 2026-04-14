@@ -8,36 +8,34 @@ const STORAGE_KEY = 'wallet_cards';
 interface StoredWallet {
   selectedIds: string[];
   customCards: CreditCard[];
-  /** Per-card user overrides (e.g. choiceCategory for BofA) */
-  preferences: Record<string, Partial<CreditCard>>;
+  preferences: Record<string, { cc?: CategoryKey }>;
+}
+
+export interface WalletSnapshot {
+  selectedIds: string[];
+  preferences: Record<string, { cc?: CategoryKey }>;
+  customCards: CreditCard[];
 }
 
 interface CardStore {
   cards: CreditCard[];
   loaded: boolean;
   loadCards: () => Promise<void>;
-  loadFromProfile: (selectedIds: string[], customCards: CreditCard[]) => Promise<void>;
+  loadFromProfile: (selectedIds: string[], customCards: CreditCard[], preferences?: Record<string, { cc?: CategoryKey }>) => Promise<void>;
   addCard: (card: CreditCard) => void;
   removeCard: (id: string) => void;
   hasCard: (id: string) => boolean;
-  /** Update a user-selectable field on any card (e.g. choiceCategory) */
   updateCardChoice: (id: string, patch: Partial<CreditCard>) => void;
+  /** Returns current wallet state for token encoding */
+  getWalletSnapshot: () => WalletSnapshot;
   getRankedCards: (category: CategoryKey) => { card: CreditCard; multiplier: number }[];
   getBestCard: (category: CategoryKey) => { card: CreditCard; multiplier: number } | null;
 }
 
 /** Compute the effective multiplier for a card in a given category */
 function effectiveRate(card: CreditCard, category: CategoryKey): number {
-  // 1. Choice category (user-selected, e.g. BofA Customized Cash)
-  if (card.choiceCategory === category && card.choiceRate !== undefined) {
-    return card.choiceRate;
-  }
-  // 2. Rotating categories (e.g. Discover: dining / drugstore this quarter)
-  if (card.rotatingCategories?.includes(category)) {
-    return card.rewards.rotating ?? card.defaultReward;
-  }
-  // 3. Rotating merchants tile — handled separately in HomeScreen via rotatingMerchants
-  // 4. Regular reward
+  if (card.choiceCategory === category && card.choiceRate !== undefined) return card.choiceRate;
+  if (card.rotatingCategories?.includes(category)) return card.rewards.rotating ?? card.defaultReward;
   return card.rewards[category] ?? card.defaultReward;
 }
 
@@ -53,18 +51,21 @@ export const useCardStore = create<CardStore>((set, get) => ({
       const prefs = wallet.preferences ?? {};
       const selected = PRELOADED_CARDS
         .filter((c) => wallet.selectedIds.includes(c.id))
-        .map((c) => ({ ...c, ...prefs[c.id] }));
+        .map((c) => applyPrefs(c, prefs[c.id]));
       set({ cards: [...selected, ...(wallet.customCards ?? [])], loaded: true });
     } catch {
       set({ cards: [], loaded: true });
     }
   },
 
-  loadFromProfile: async (selectedIds, customCards) => {
-    const selected = PRELOADED_CARDS.filter((c) => selectedIds.includes(c.id));
+  loadFromProfile: async (selectedIds, customCards, preferences = {}) => {
+    const selected = PRELOADED_CARDS
+      .filter((c) => selectedIds.includes(c.id))
+      .map((c) => applyPrefs(c, preferences[c.id]));
     const cards = [...selected, ...(customCards ?? [])];
     set({ cards, loaded: true });
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ selectedIds, customCards: customCards ?? [], preferences: {} }));
+    const wallet: StoredWallet = { selectedIds, customCards: customCards ?? [], preferences };
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(wallet));
   },
 
   addCard: (card) => {
@@ -87,9 +88,21 @@ export const useCardStore = create<CardStore>((set, get) => ({
 
   hasCard: (id) => get().cards.some((c) => c.id === id),
 
+  getWalletSnapshot: (): WalletSnapshot => {
+    const cards = get().cards;
+    const selectedIds = cards.filter((c) => c.isPreloaded).map((c) => c.id);
+    const customCards = cards.filter((c) => !c.isPreloaded);
+    const preferences: Record<string, { cc?: CategoryKey }> = {};
+    for (const card of cards) {
+      if (card.isPreloaded && card.choiceCategory !== undefined) {
+        preferences[card.id] = { cc: card.choiceCategory };
+      }
+    }
+    return { selectedIds, preferences, customCards };
+  },
+
   getRankedCards: (category) =>
-    get()
-      .cards
+    get().cards
       .map((card) => ({ card, multiplier: effectiveRate(card, category) }))
       .sort((a, b) => b.multiplier - a.multiplier),
 
@@ -99,20 +112,20 @@ export const useCardStore = create<CardStore>((set, get) => ({
   },
 }));
 
+function applyPrefs(card: CreditCard, prefs?: { cc?: CategoryKey }): CreditCard {
+  if (!prefs) return card;
+  return { ...card, ...(prefs.cc !== undefined ? { choiceCategory: prefs.cc } : {}) };
+}
+
 function _persist(cards: CreditCard[]) {
   const selectedIds = cards.filter((c) => c.isPreloaded).map((c) => c.id);
   const customCards = cards.filter((c) => !c.isPreloaded);
-  // Store user preferences (choiceCategory etc.) separately so preloaded card
-  // base data is always sourced from cards.ts (stays up-to-date on sync)
-  const preferences: Record<string, Partial<CreditCard>> = {};
+  const preferences: Record<string, { cc?: CategoryKey }> = {};
   for (const card of cards) {
     if (card.isPreloaded && card.choiceCategory !== undefined) {
-      preferences[card.id] = { choiceCategory: card.choiceCategory };
+      preferences[card.id] = { cc: card.choiceCategory };
     }
   }
-  const wallet = { selectedIds, customCards, preferences };
-  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(wallet));
-  import('./useProfileStore').then(({ useProfileStore }) => {
-    useProfileStore.getState().pushWallet({ selectedIds, customCards });
-  });
+  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ selectedIds, customCards, preferences }));
+  // TODO: when Supabase is connected, push wallet here
 }

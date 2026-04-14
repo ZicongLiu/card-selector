@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,139 +6,144 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useProfileStore } from '../store/useProfileStore';
 import { useCardStore } from '../store/useCardStore';
+import { encodeWallet, decodeWallet, walletSummary } from '../lib/token';
 
 const BENEFIT_CHECKS_KEY = 'benefit_checks';
 
 export function SettingsScreen() {
-  const { token, syncing, lastSynced, configured, importToken } = useProfileStore();
-  const { loadFromProfile } = useCardStore();
+  const { getWalletSnapshot, loadFromProfile, cards } = useCardStore();
+
+  // Token is always freshly derived from the current wallet state
+  const token = useMemo(() => {
+    const snap = getWalletSnapshot();
+    return encodeWallet(snap);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards]); // recompute whenever wallet changes
 
   const [importInput, setImportInput] = useState('');
   const [importing, setImporting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [importError, setImportError] = useState('');
-  const [importSuccess, setImportSuccess] = useState(false);
+  const [importSuccess, setImportSuccess] = useState('');
+  const [preview, setPreview] = useState<string | null>(null); // decoded summary before confirm
 
   const handleCopy = async () => {
-    if (!token) return;
     await Clipboard.setStringAsync(token);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Preview decode on input change so user sees what they're about to import
+  const handleInputChange = (text: string) => {
+    setImportInput(text);
+    setImportError('');
+    setImportSuccess('');
+    setPreview(null);
+    if (text.trim().length > 10) {
+      const result = decodeWallet(text.trim());
+      if (result.ok) {
+        setPreview(walletSummary(result.data));
+      } else {
+        setPreview(null);
+      }
+    }
+  };
+
   const handleImport = async () => {
     if (!importInput.trim()) return;
     setImportError('');
-    setImportSuccess(false);
+    setImportSuccess('');
     setImporting(true);
 
-    const result = await importToken(importInput.trim());
-    setImporting(false);
-
+    const result = decodeWallet(importInput.trim());
     if (!result.ok) {
       setImportError(result.error);
+      setImporting(false);
       return;
     }
 
-    // Apply the fetched profile locally
-    const profile = result.profile;
-    await loadFromProfile(profile.selected_ids ?? [], profile.custom_cards ?? []);
-
-    if (profile.benefit_checks) {
-      await AsyncStorage.setItem(BENEFIT_CHECKS_KEY, JSON.stringify(profile.benefit_checks));
-    }
+    const { selectedIds, customCards, preferences } = result.data;
+    await loadFromProfile(selectedIds, customCards, preferences);
+    // Benefit checks are not encoded in the token (device-specific timestamps)
+    // TODO #6: restore benefit checks from Supabase when connected
 
     setImportInput('');
-    setImportSuccess(true);
-    setTimeout(() => setImportSuccess(false), 3000);
+    setPreview(null);
+    setImporting(false);
+    setImportSuccess(`Restored: ${walletSummary(result.data)}`);
+    setTimeout(() => setImportSuccess(''), 4000);
   };
 
-  const formatDate = (iso: string | null) => {
-    if (!iso) return 'Never';
-    const d = new Date(iso);
-    return d.toLocaleString(undefined, {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    });
-  };
+  const cardCount = getWalletSnapshot().selectedIds.length + getWalletSnapshot().customCards.length;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.eyebrow}>SMART WALLET</Text>
         <Text style={styles.title}>Settings</Text>
       </View>
 
-      {/* Sync status banner */}
-      {!configured && (
-        <View style={styles.banner}>
-          <Text style={styles.bannerIcon}>⚠️</Text>
-          <Text style={styles.bannerText}>
-            Cloud sync is not configured. Your data is saved locally only.
-          </Text>
-        </View>
-      )}
-
-      {/* Your Token */}
+      {/* Export token */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={styles.cardIcon}>🔑</Text>
-          <Text style={styles.cardTitle}>Your Sync Token</Text>
-          {syncing && <ActivityIndicator size="small" color="#4361EE" style={{ marginLeft: 'auto' }} />}
+          <Text style={styles.cardIcon}>📤</Text>
+          <Text style={styles.cardTitle}>Export Wallet</Text>
         </View>
         <Text style={styles.cardDesc}>
-          This token identifies your profile. Save it somewhere safe — you'll need it to restore your data on another device.
+          This token encodes your entire wallet — {cardCount} card{cardCount !== 1 ? 's' : ''}, custom rules, and category choices. Copy and paste it on another device to restore.
         </Text>
 
         <View style={styles.tokenBox}>
-          <Text style={styles.tokenText} selectable numberOfLines={1}>
-            {token ?? '—'}
+          <Text style={styles.tokenText} selectable numberOfLines={3}>
+            {token}
           </Text>
-          <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} activeOpacity={0.75}>
-            <Text style={styles.copyBtnText}>{copied ? '✓ Copied' : 'Copy'}</Text>
-          </TouchableOpacity>
         </View>
 
-        <Text style={styles.syncMeta}>
-          Last synced: {formatDate(lastSynced)}
-        </Text>
+        <TouchableOpacity style={styles.copyBtn} onPress={handleCopy} activeOpacity={0.75}>
+          <Text style={styles.copyBtnText}>{copied ? '✓  Copied to clipboard' : '⎘  Copy Token'}</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.tokenMeta}>Token updates automatically as your wallet changes.</Text>
       </View>
 
-      {/* Import / Restore */}
+      {/* Import token */}
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardIcon}>📥</Text>
-          <Text style={styles.cardTitle}>Restore from Token</Text>
+          <Text style={styles.cardTitle}>Import Wallet</Text>
         </View>
         <Text style={styles.cardDesc}>
-          Enter a token from another device to import its wallet and benefit data. This will replace your current local data.
+          Paste a token exported from another device. Your current wallet will be replaced.
         </Text>
 
         <TextInput
           style={[styles.input, importError ? styles.inputError : null]}
-          placeholder="Paste your token here…"
+          placeholder="Paste token here…"
           placeholderTextColor="#3A4A66"
           value={importInput}
-          onChangeText={(t) => { setImportInput(t); setImportError(''); }}
+          onChangeText={handleInputChange}
           autoCapitalize="none"
           autoCorrect={false}
+          multiline
+          numberOfLines={3}
         />
 
-        {importError ? (
-          <Text style={styles.errorText}>⚠ {importError}</Text>
-        ) : null}
+        {/* Live preview of what will be imported */}
+        {preview && !importError && (
+          <View style={styles.previewRow}>
+            <Text style={styles.previewIcon}>👀</Text>
+            <Text style={styles.previewText}>Will restore: {preview}</Text>
+          </View>
+        )}
 
-        {importSuccess ? (
-          <Text style={styles.successText}>✓ Profile restored successfully!</Text>
-        ) : null}
+        {importError ? <Text style={styles.errorText}>⚠  {importError}</Text> : null}
+        {importSuccess ? <Text style={styles.successText}>✓  {importSuccess}</Text> : null}
 
         <TouchableOpacity
           style={[styles.importBtn, (!importInput.trim() || importing) && styles.importBtnDisabled]}
@@ -149,7 +154,7 @@ export function SettingsScreen() {
           {importing ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.importBtnText}>Restore Profile</Text>
+            <Text style={styles.importBtnText}>Restore Wallet</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -158,22 +163,25 @@ export function SettingsScreen() {
       <View style={styles.card}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardIcon}>ℹ️</Text>
-          <Text style={styles.cardTitle}>How Sync Works</Text>
+          <Text style={styles.cardTitle}>How It Works</Text>
         </View>
         <View style={styles.steps}>
           {[
-            ['1', 'Copy your token on this device'],
-            ['2', 'Open the app on another device'],
-            ['3', 'Go to Settings → Restore from Token'],
-            ['4', 'Paste the token and tap Restore'],
-          ].map(([num, text]) => (
-            <View key={num} style={styles.step}>
-              <View style={styles.stepBadge}>
-                <Text style={styles.stepNum}>{num}</Text>
-              </View>
+            ['📤', 'Copy your token on this device'],
+            ['💬', 'Send it to yourself (Notes, email, message)'],
+            ['📱', 'Open the app on another device → Settings'],
+            ['📥', 'Paste and tap Restore Wallet'],
+          ].map(([icon, text]) => (
+            <View key={text} style={styles.step}>
+              <Text style={styles.stepIcon}>{icon}</Text>
               <Text style={styles.stepText}>{text}</Text>
             </View>
           ))}
+        </View>
+        <View style={styles.noteBanner}>
+          <Text style={styles.noteText}>
+            The token is self-contained — no account or internet needed. It encodes preloaded card selections, your BofA category choice, and any custom cards with their full reward rules.
+          </Text>
         </View>
       </View>
     </ScrollView>
@@ -188,27 +196,9 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 11, fontWeight: '700', color: '#4361EE', letterSpacing: 2.5, marginBottom: 4 },
   title: { fontSize: 28, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.5 },
 
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: '#1A1500',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#3D3000',
-    gap: 10,
-  },
-  bannerIcon: { fontSize: 16 },
-  bannerText: { flex: 1, fontSize: 13, color: '#C8A400', lineHeight: 18 },
-
   card: {
-    backgroundColor: '#161B24',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#232B3A',
+    backgroundColor: '#161B24', borderRadius: 16, padding: 18,
+    marginBottom: 16, borderWidth: 1, borderColor: '#232B3A',
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   cardIcon: { fontSize: 18 },
@@ -216,70 +206,53 @@ const styles = StyleSheet.create({
   cardDesc: { fontSize: 13, color: '#6B7A99', lineHeight: 18, marginBottom: 14 },
 
   tokenBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0D1117',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2E3F6E',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 10,
-    gap: 10,
+    backgroundColor: '#0D1117', borderRadius: 10, borderWidth: 1, borderColor: '#2E3F6E',
+    padding: 14, marginBottom: 12,
   },
   tokenText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#7B93FF',
+    fontSize: 11, color: '#7B93FF', lineHeight: 17,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   copyBtn: {
-    backgroundColor: '#4361EE',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: '#4361EE', borderRadius: 12, paddingVertical: 13, alignItems: 'center',
   },
-  copyBtnText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
-  syncMeta: { fontSize: 11, color: '#3A4A66' },
+  copyBtnText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  tokenMeta: { fontSize: 11, color: '#3A4A66', marginTop: 10, textAlign: 'center' },
 
   input: {
-    backgroundColor: '#0D1117',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2E3F6E',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 13,
-    color: '#FFFFFF',
-    marginBottom: 10,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    backgroundColor: '#0D1117', borderRadius: 10, borderWidth: 1, borderColor: '#2E3F6E',
+    paddingHorizontal: 14, paddingVertical: 12, fontSize: 12, color: '#FFFFFF',
+    marginBottom: 10, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    minHeight: 80, textAlignVertical: 'top',
   },
   inputError: { borderColor: '#EE4361' },
+
+  previewRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#0F1A0F', borderRadius: 10, padding: 10, marginBottom: 10,
+    borderWidth: 1, borderColor: '#1E3A1E',
+  },
+  previewIcon: { fontSize: 14 },
+  previewText: { fontSize: 12, color: '#4CAF50', flex: 1, fontWeight: '600' },
+
   errorText: { fontSize: 13, color: '#EE4361', marginBottom: 10 },
   successText: { fontSize: 13, color: '#22C55E', marginBottom: 10, fontWeight: '600' },
 
   importBtn: {
-    backgroundColor: '#4361EE',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
+    backgroundColor: '#4361EE', borderRadius: 12, paddingVertical: 14, alignItems: 'center',
   },
   importBtnDisabled: { backgroundColor: '#1A2240', opacity: 0.6 },
   importBtnText: { fontSize: 15, fontWeight: '700', color: '#FFFFFF' },
 
-  steps: { gap: 10 },
-  step: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  stepBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#1A2240',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#2E3F6E',
+  steps: { gap: 12, marginBottom: 16 },
+  step: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  stepIcon: { fontSize: 16, width: 24, textAlign: 'center' },
+  stepText: { fontSize: 13, color: '#8892A4', flex: 1, lineHeight: 19 },
+
+  noteBanner: {
+    backgroundColor: '#1A2240', borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: '#2E3F6E',
   },
-  stepNum: { fontSize: 11, fontWeight: '800', color: '#7B93FF' },
-  stepText: { fontSize: 13, color: '#8892A4', flex: 1 },
+  noteText: { fontSize: 12, color: '#6B7A99', lineHeight: 18 },
 });

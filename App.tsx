@@ -11,7 +11,6 @@ import { BrowseCardsScreen } from './src/screens/BrowseCardsScreen';
 import { BenefitsScreen } from './src/screens/BenefitsScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { useCardStore } from './src/store/useCardStore';
-import { useProfileStore } from './src/store/useProfileStore';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -35,10 +34,8 @@ function CardsStack() {
 
 export default function App() {
   const loadCards = useCardStore((s) => s.loadCards);
-  const initProfile = useProfileStore((s) => s.init);
 
   useEffect(() => {
-    initProfile();
     loadCards();
   }, []);
 
