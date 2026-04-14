@@ -376,9 +376,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#161B24', borderRadius: 12,
     paddingHorizontal: 12, borderWidth: 1, borderColor: '#232B3A', gap: 8,
+    height: 48,
   },
   searchIconText: { fontSize: 15 },
-  searchInput: { flex: 1, paddingVertical: 13, fontSize: 14, color: '#FFFFFF' },
+  searchInput: { flex: 1, fontSize: 14, color: '#FFFFFF', height: 48 },
   clearBtn: { color: '#6B7A99', fontSize: 13, padding: 4 },
 
   issuerList: { paddingHorizontal: 16, paddingBottom: 10, gap: 8 },
