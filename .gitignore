@@ -2,6 +2,8 @@
 
 # dependencies
 node_modules/
+# Override global gitignore so Netlify CI can find the lock file
+!package-lock.json
 
 # Expo
 .expo/
