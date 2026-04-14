@@ -16,13 +16,17 @@ import { CardVisual } from '../components/CardVisual';
 import { SyncModal } from '../components/SyncModal';
 import { PayModal } from '../components/PayModal';
 
-// One tile per unique rotating merchant across all wallet cards
 interface RotatingTile {
   merchant: string;
   rate: number;
   cards: CreditCard[];
-  note: string; // e.g. "Q2 2026 (Apr–Jun)"
+  note: string;
 }
+
+// Unified tile for both standard categories and rotating merchants
+type UnifiedTile =
+  | { kind: 'category'; key: CategoryKey; label: string; icon: string; bestRate: number }
+  | { kind: 'rotating'; merchant: string; rate: number; cards: CreditCard[]; note: string };
 
 export function HomeScreen() {
   const { cards } = useCardStore();
@@ -43,6 +47,9 @@ export function HomeScreen() {
       for (const merchant of card.rotatingMerchants) {
         const existing = map.get(merchant);
         if (existing) {
+          if ((card.rewards.rotating ?? card.defaultReward) > existing.rate) {
+            existing.rate = card.rewards.rotating ?? card.defaultReward;
+          }
           existing.cards.push(card);
         } else {
           map.set(merchant, {
@@ -56,6 +63,39 @@ export function HomeScreen() {
     }
     return Array.from(map.values());
   }, [cards]);
+
+  // Unified sorted tile list: all categories + rotating merchants, sorted by best rate
+  const sortedTiles = useMemo<UnifiedTile[]>(() => {
+    if (cards.length === 0) {
+      // No wallet: just show categories in default order with no rates
+      return CATEGORIES.map((cat) => ({
+        kind: 'category' as const,
+        key: cat.key,
+        label: cat.label,
+        icon: cat.icon,
+        bestRate: 0,
+      }));
+    }
+
+    const categoryTiles: UnifiedTile[] = CATEGORIES.map((cat) => {
+      const bestRate = Math.max(...cards.map((c) => c.rewards[cat.key] ?? c.defaultReward));
+      return { kind: 'category', key: cat.key, label: cat.label, icon: cat.icon, bestRate };
+    });
+
+    const rotatingUnified: UnifiedTile[] = rotatingTiles.map((t) => ({
+      kind: 'rotating',
+      merchant: t.merchant,
+      rate: t.rate,
+      cards: t.cards,
+      note: t.note,
+    }));
+
+    return [...categoryTiles, ...rotatingUnified].sort((a, b) => {
+      const rateA = a.kind === 'category' ? a.bestRate : a.rate;
+      const rateB = b.kind === 'category' ? b.bestRate : b.rate;
+      return rateB - rateA;
+    });
+  }, [cards, rotatingTiles]);
 
   // Regular category results
   const activeCategory = mode === 'category' ? selectedCategory : resolvedMerchant?.category ?? null;
@@ -151,64 +191,51 @@ export function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Category grid */}
+      {/* Unified sorted category + rotating grid */}
       {mode === 'category' && (
-        <>
-          {/* Standard categories */}
-          <View style={styles.grid}>
-            {CATEGORIES.map((cat) => {
-              const active = selectedCategory === cat.key;
+        <View style={styles.grid}>
+          {sortedTiles.map((tile) => {
+            if (tile.kind === 'category') {
+              const active = selectedCategory === tile.key;
               return (
                 <TouchableOpacity
-                  key={cat.key}
+                  key={tile.key}
                   style={[styles.catTile, active && styles.catTileActive]}
-                  onPress={() => handleCategorySelect(cat.key)}
+                  onPress={() => handleCategorySelect(tile.key)}
                   activeOpacity={0.75}
                 >
-                  <Text style={styles.catEmoji}>{cat.icon}</Text>
-                  <Text style={[styles.catName, active && styles.catNameActive]}>{cat.label}</Text>
+                  <Text style={styles.catEmoji}>{tile.icon}</Text>
+                  <Text style={[styles.catName, active && styles.catNameActive]}>{tile.label}</Text>
+                  {cards.length > 0 && (
+                    <Text style={[styles.catRate, active && styles.catRateActive]}>
+                      {tile.bestRate}x
+                    </Text>
+                  )}
                   {active && <View style={styles.catActiveDot} />}
                 </TouchableOpacity>
               );
-            })}
-          </View>
-
-          {/* Rotating merchant tiles — only shown when wallet has rotating cards */}
-          {rotatingTiles.length > 0 && (
-            <View style={styles.rotatingSection}>
-              <View style={styles.rotatingSectionHeader}>
-                <Text style={styles.rotatingSectionLabel}>⚡ ROTATING BONUS</Text>
-                <Text style={styles.rotatingSectionPeriod}>{rotatingTiles[0]?.note.split(':')[0]}</Text>
-              </View>
-              <View style={styles.rotatingGrid}>
-                {rotatingTiles.map((tile) => {
-                  const active = selectedRotatingMerchant === tile.merchant;
-                  return (
-                    <TouchableOpacity
-                      key={tile.merchant}
-                      style={[styles.rotatingTile, active && styles.rotatingTileActive]}
-                      onPress={() => handleRotatingSelect(tile.merchant)}
-                      activeOpacity={0.75}
-                    >
-                      <View style={styles.rotatingTileTop}>
-                        <Text style={styles.rotatingTileMerchant}>{tile.merchant}</Text>
-                        <View style={[styles.rotatingRateBadge, active && styles.rotatingRateBadgeActive]}>
-                          <Text style={[styles.rotatingRate, active && styles.rotatingRateActive]}>
-                            {tile.rate}x
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={styles.rotatingTileCards} numberOfLines={1}>
-                        {tile.cards.map((c) => c.name).join(', ')}
-                      </Text>
-                      {active && <View style={styles.rotatingActiveDot} />}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-        </>
+            } else {
+              const active = selectedRotatingMerchant === tile.merchant;
+              return (
+                <TouchableOpacity
+                  key={`rotating-${tile.merchant}`}
+                  style={[styles.catTile, styles.catTileRotating, active && styles.catTileRotatingActive]}
+                  onPress={() => handleRotatingSelect(tile.merchant)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.catEmoji}>⚡</Text>
+                  <Text style={[styles.catName, styles.catNameRotating, active && styles.catNameRotatingActive]} numberOfLines={1}>
+                    {tile.merchant}
+                  </Text>
+                  <Text style={[styles.catRate, styles.catRateRotating, active && styles.catRateRotatingActive]}>
+                    {tile.rate}x
+                  </Text>
+                  {active && <View style={[styles.catActiveDot, { backgroundColor: '#F59E0B' }]} />}
+                </TouchableOpacity>
+              );
+            }
+          })}
+        </View>
       )}
 
       {/* Merchant search */}
@@ -374,45 +401,26 @@ const styles = StyleSheet.create({
   pillTabText: { fontSize: 14, color: '#6B7A99', fontWeight: '600' },
   pillTabTextActive: { color: '#FFFFFF' },
 
-  // Standard category grid
+  // Unified category + rotating grid
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10, marginBottom: 8 },
   catTile: {
     width: '22%', aspectRatio: 0.9, backgroundColor: '#161B24', borderRadius: 16,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#232B3A',
-    position: 'relative', gap: 2,
+    position: 'relative', gap: 1, paddingHorizontal: 4,
   },
   catTileActive: { borderColor: '#4361EE', backgroundColor: '#1A2240' },
-  catEmoji: { fontSize: 24 },
+  catTileRotating: { backgroundColor: '#1A1200', borderColor: '#5C3A00' },
+  catTileRotatingActive: { borderColor: '#F59E0B', backgroundColor: '#241900' },
+  catEmoji: { fontSize: 22 },
   catName: { fontSize: 9, color: '#6B7A99', textAlign: 'center', fontWeight: '500' },
   catNameActive: { color: '#7B93FF', fontWeight: '700' },
-  catActiveDot: { position: 'absolute', bottom: 7, width: 4, height: 4, borderRadius: 2, backgroundColor: '#4361EE' },
-
-  // Rotating section
-  rotatingSection: { paddingHorizontal: 16, marginBottom: 8 },
-  rotatingSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  rotatingSectionLabel: { fontSize: 11, fontWeight: '800', color: '#F59E0B', letterSpacing: 1.5 },
-  rotatingSectionPeriod: {
-    fontSize: 10, color: '#78490A', fontWeight: '700',
-    backgroundColor: '#2A1800', paddingHorizontal: 7, paddingVertical: 2,
-    borderRadius: 6, borderWidth: 1, borderColor: '#5C3A00',
-  },
-  rotatingGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  rotatingTile: {
-    flex: 1, minWidth: '45%', backgroundColor: '#1A1200', borderRadius: 14,
-    padding: 14, borderWidth: 1.5, borderColor: '#5C3A00', position: 'relative', gap: 6,
-  },
-  rotatingTileActive: { borderColor: '#F59E0B', backgroundColor: '#241900' },
-  rotatingTileTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  rotatingTileMerchant: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', flex: 1 },
-  rotatingRateBadge: {
-    backgroundColor: '#2A1800', borderRadius: 8, paddingHorizontal: 8,
-    paddingVertical: 3, borderWidth: 1, borderColor: '#5C3A00',
-  },
-  rotatingRateBadgeActive: { backgroundColor: '#F59E0B', borderColor: '#F59E0B' },
-  rotatingRate: { fontSize: 13, fontWeight: '800', color: '#F59E0B' },
-  rotatingRateActive: { color: '#000000' },
-  rotatingTileCards: { fontSize: 11, color: '#78490A' },
-  rotatingActiveDot: { position: 'absolute', bottom: 8, right: 10, width: 5, height: 5, borderRadius: 3, backgroundColor: '#F59E0B' },
+  catNameRotating: { color: '#C08020' },
+  catNameRotatingActive: { color: '#F59E0B', fontWeight: '700' },
+  catRate: { fontSize: 11, fontWeight: '800', color: '#4361EE' },
+  catRateActive: { color: '#7B93FF' },
+  catRateRotating: { color: '#F59E0B' },
+  catRateRotatingActive: { color: '#FCD34D' },
+  catActiveDot: { position: 'absolute', bottom: 6, width: 4, height: 4, borderRadius: 2, backgroundColor: '#4361EE' },
 
   // Merchant search
   searchSection: { paddingHorizontal: 20, marginBottom: 8 },
