@@ -29,7 +29,7 @@ type UnifiedTile =
   | { kind: 'rotating'; merchant: string; rate: number; cards: CreditCard[]; note: string };
 
 export function HomeScreen() {
-  const { cards } = useCardStore();
+  const { cards, getRankedCards } = useCardStore();
   const [selectedCategory, setSelectedCategory] = useState<CategoryKey | null>(null);
   const [selectedRotatingMerchant, setSelectedRotatingMerchant] = useState<string | null>(null);
   const [merchantQuery, setMerchantQuery] = useState('');
@@ -122,13 +122,11 @@ export function HomeScreen() {
     });
   }, [cards, rotatingTiles]);
 
-  // Regular category results
+  // Regular category results — use store's effectiveRate so rotating/choice categories rank correctly
   const activeCategory = mode === 'category' ? selectedCategory : resolvedMerchant?.category ?? null;
   const ranked = useMemo(() => {
     if (!activeCategory) return [];
-    return cards
-      .map((card) => ({ card, multiplier: card.rewards[activeCategory] ?? card.defaultReward }))
-      .sort((a, b) => b.multiplier - a.multiplier);
+    return getRankedCards(activeCategory);
   }, [activeCategory, cards]);
 
   // Rotating merchant results: only cards that include that merchant
