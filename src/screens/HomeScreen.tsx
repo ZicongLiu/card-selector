@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Platform,
 } from 'react-native';
 import { useCardStore } from '../store/useCardStore';
 import { CATEGORIES } from '../data/categories';
@@ -22,12 +21,12 @@ export function HomeScreen() {
   const [selectedCategory, setSelectedCategory] = useState<CategoryKey | null>(null);
   const [merchantQuery, setMerchantQuery] = useState('');
   const [suggestions, setSuggestions] = useState<MerchantEntry[]>([]);
-  const [resolvedCategory, setResolvedCategory] = useState<CategoryKey | null>(null);
+  const [resolvedMerchant, setResolvedMerchant] = useState<MerchantEntry | null>(null);
   const [mode, setMode] = useState<'category' | 'merchant'>('category');
   const [syncVisible, setSyncVisible] = useState(false);
   const [payCard, setPayCard] = useState<{ card: any; multiplier: number } | null>(null);
 
-  const activeCategory = mode === 'category' ? selectedCategory : resolvedCategory;
+  const activeCategory = mode === 'category' ? selectedCategory : resolvedMerchant?.category ?? null;
   const ranked = activeCategory ? getRankedCards(activeCategory) : [];
   const best = ranked[0] ?? null;
   const others = ranked.slice(1);
@@ -35,15 +34,20 @@ export function HomeScreen() {
 
   const handleMerchantChange = (text: string) => {
     setMerchantQuery(text);
-    setResolvedCategory(null);
+    setResolvedMerchant(null);
     setSuggestions(searchMerchants(text));
   };
 
   const handleSelectMerchant = (merchant: MerchantEntry) => {
     setMerchantQuery(merchant.name);
-    setResolvedCategory(merchant.category);
+    setResolvedMerchant(merchant);
     setSuggestions([]);
   };
+
+  // Cards with rotating bonuses — used to show merchant breakdown in results
+  const rotatingCards = ranked
+    .map((r) => r.card)
+    .filter((c) => c.rotatingMerchants && c.rotatingMerchants.length > 0);
 
   return (
     <ScrollView
@@ -80,7 +84,7 @@ export function HomeScreen() {
       <View style={styles.pill}>
         <TouchableOpacity
           style={[styles.pillTab, mode === 'category' && styles.pillTabActive]}
-          onPress={() => { setMode('category'); setResolvedCategory(null); }}
+          onPress={() => { setMode('category'); setResolvedMerchant(null); }}
         >
           <Text style={[styles.pillTabText, mode === 'category' && styles.pillTabTextActive]}>
             By Category
@@ -101,16 +105,31 @@ export function HomeScreen() {
         <View style={styles.grid}>
           {CATEGORIES.map((cat) => {
             const active = selectedCategory === cat.key;
+            const isRotating = cat.key === 'rotating';
             return (
               <TouchableOpacity
                 key={cat.key}
-                style={[styles.catTile, active && styles.catTileActive]}
+                style={[
+                  styles.catTile,
+                  active && styles.catTileActive,
+                  isRotating && styles.catTileRotating,
+                  active && isRotating && styles.catTileRotatingActive,
+                ]}
                 onPress={() => setSelectedCategory(cat.key)}
                 activeOpacity={0.75}
               >
                 <Text style={styles.catEmoji}>{cat.icon}</Text>
-                <Text style={[styles.catName, active && styles.catNameActive]}>{cat.label}</Text>
-                {active && <View style={styles.catActiveDot} />}
+                <Text style={[styles.catName, active && styles.catNameActive, isRotating && styles.catNameRotating]}>
+                  {cat.label}
+                </Text>
+                {cat.quarterLabel && (
+                  <View style={[styles.quarterBadge, active && styles.quarterBadgeActive]}>
+                    <Text style={[styles.quarterBadgeText, active && styles.quarterBadgeTextActive]}>
+                      {cat.quarterLabel}
+                    </Text>
+                  </View>
+                )}
+                {active && !cat.quarterLabel && <View style={styles.catActiveDot} />}
               </TouchableOpacity>
             );
           })}
@@ -131,27 +150,33 @@ export function HomeScreen() {
               autoCorrect={false}
             />
             {merchantQuery.length > 0 && (
-              <TouchableOpacity onPress={() => { setMerchantQuery(''); setSuggestions([]); setResolvedCategory(null); }}>
+              <TouchableOpacity onPress={() => { setMerchantQuery(''); setSuggestions([]); setResolvedMerchant(null); }}>
                 <Text style={styles.clearBtn}>✕</Text>
               </TouchableOpacity>
             )}
           </View>
+
           {suggestions.length > 0 && (
             <View style={styles.dropdown}>
               {suggestions.map((s, i) => {
                 const cat = CATEGORIES.find((c) => c.key === s.category);
+                const isRotating = s.category === 'rotating';
                 return (
                   <TouchableOpacity
                     key={s.name}
                     style={[styles.dropdownRow, i < suggestions.length - 1 && styles.dropdownDivider]}
                     onPress={() => handleSelectMerchant(s)}
                   >
-                    <View style={styles.dropdownIcon}>
+                    <View style={[styles.dropdownIcon, isRotating && styles.dropdownIconRotating]}>
                       <Text style={{ fontSize: 16 }}>{cat?.icon}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.dropdownName}>{s.name}</Text>
-                      <Text style={styles.dropdownCat}>{cat?.label}</Text>
+                      {s.rotatingNote ? (
+                        <Text style={styles.dropdownRotatingNote}>{s.rotatingNote}</Text>
+                      ) : (
+                        <Text style={styles.dropdownCat}>{cat?.label}</Text>
+                      )}
                     </View>
                     <Text style={styles.dropdownArrow}>›</Text>
                   </TouchableOpacity>
@@ -159,10 +184,11 @@ export function HomeScreen() {
               })}
             </View>
           )}
-          {resolvedCategory && (
-            <View style={styles.resolvedTag}>
-              <Text style={styles.resolvedTagText}>
-                {activeCategoryObj?.icon}  {activeCategoryObj?.label}
+
+          {resolvedMerchant && (
+            <View style={[styles.resolvedTag, resolvedMerchant.category === 'rotating' && styles.resolvedTagRotating]}>
+              <Text style={[styles.resolvedTagText, resolvedMerchant.category === 'rotating' && styles.resolvedTagTextRotating]}>
+                {activeCategoryObj?.icon}  {resolvedMerchant.rotatingNote ?? activeCategoryObj?.label}
               </Text>
             </View>
           )}
@@ -181,12 +207,34 @@ export function HomeScreen() {
       {/* Results */}
       {best && (
         <View style={styles.results}>
+          {/* Rotating merchant breakdown callout */}
+          {activeCategory === 'rotating' && rotatingCards.length > 0 && (
+            <View style={styles.rotatingCallout}>
+              <Text style={styles.rotatingCalloutTitle}>⚡ Rotating Bonus Merchants</Text>
+              {rotatingCards.map((c) => (
+                <View key={c.id} style={styles.rotatingCalloutRow}>
+                  <Text style={styles.rotatingCalloutCard}>{c.name}</Text>
+                  <Text style={styles.rotatingCalloutNote}>{c.rotatingNote}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           <View style={styles.resultsLabel}>
             <View style={styles.resultsLabelLine} />
             <Text style={styles.resultsLabelText}>BEST PICK</Text>
             <View style={styles.resultsLabelLine} />
           </View>
+
           <CardVisual card={best.card} multiplier={best.multiplier} rank={0} />
+
+          {/* Per-card rotating merchant note under the best card */}
+          {best.card.rotatingNote && activeCategory === 'rotating' && (
+            <View style={styles.merchantNote}>
+              <Text style={styles.merchantNoteText}>✓ Qualifies at: {best.card.rotatingMerchants?.join(', ')}</Text>
+            </View>
+          )}
+
           <TouchableOpacity
             style={styles.payBtn}
             onPress={() => setPayCard(best)}
@@ -204,7 +252,14 @@ export function HomeScreen() {
                 <View style={styles.resultsLabelLine} />
               </View>
               {others.map(({ card, multiplier }, i) => (
-                <CardVisual key={card.id} card={card} multiplier={multiplier} rank={i + 1} compact />
+                <View key={card.id}>
+                  <CardVisual card={card} multiplier={multiplier} rank={i + 1} compact />
+                  {card.rotatingNote && activeCategory === 'rotating' && (
+                    <View style={[styles.merchantNote, { marginTop: -6 }]}>
+                      <Text style={styles.merchantNoteText}>✓ Qualifies at: {card.rotatingMerchants?.join(', ')}</Text>
+                    </View>
+                  )}
+                </View>
               ))}
             </>
           )}
@@ -225,6 +280,7 @@ export function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0D1117' },
   content: { paddingBottom: 40 },
+
   payBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -247,59 +303,31 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 28,
   },
-  heroEyebrow: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#4361EE',
-    letterSpacing: 2.5,
-    marginBottom: 8,
-  },
-  heroTitle: {
-    fontSize: 34,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    lineHeight: 40,
-    letterSpacing: -0.5,
-    marginBottom: 14,
-  },
+  heroEyebrow: { fontSize: 11, fontWeight: '700', color: '#4361EE', letterSpacing: 2.5, marginBottom: 8 },
+  heroTitle: { fontSize: 34, fontWeight: '800', color: '#FFFFFF', lineHeight: 40, letterSpacing: -0.5, marginBottom: 14 },
   heroBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   verifiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#1A2335',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: '#2A3F5F',
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#1A2335', borderRadius: 20,
+    paddingHorizontal: 12, paddingVertical: 5,
+    borderWidth: 1, borderColor: '#2A3F5F',
   },
   verifiedDot: { fontSize: 8, color: '#4CAF50' },
   verifiedText: { fontSize: 11, color: '#8892A4', fontWeight: '500' },
   syncBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#1A2240',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: '#2E3F6E',
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: '#1A2240', borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 7,
+    borderWidth: 1, borderColor: '#2E3F6E',
   },
   syncIcon: { fontSize: 15, color: '#7B93FF', fontWeight: '600' },
   syncText: { fontSize: 12, color: '#7B93FF', fontWeight: '700' },
 
   // Mode pill
   pill: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginBottom: 20,
-    backgroundColor: '#161B24',
-    borderRadius: 14,
-    padding: 4,
-    borderWidth: 1,
-    borderColor: '#232B3A',
+    flexDirection: 'row', marginHorizontal: 20, marginBottom: 20,
+    backgroundColor: '#161B24', borderRadius: 14, padding: 4,
+    borderWidth: 1, borderColor: '#232B3A',
   },
   pillTab: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
   pillTabActive: { backgroundColor: '#4361EE' },
@@ -307,13 +335,7 @@ const styles = StyleSheet.create({
   pillTabTextActive: { color: '#FFFFFF' },
 
   // Category grid
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    gap: 10,
-    marginBottom: 8,
-  },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 10, marginBottom: 8 },
   catTile: {
     width: '22%',
     aspectRatio: 0.9,
@@ -324,93 +346,100 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#232B3A',
     position: 'relative',
+    gap: 2,
   },
-  catTileActive: {
-    borderColor: '#4361EE',
-    backgroundColor: '#1A2240',
-  },
-  catEmoji: { fontSize: 24, marginBottom: 6 },
-  catName: { fontSize: 10, color: '#6B7A99', textAlign: 'center', fontWeight: '500' },
+  catTileActive: { borderColor: '#4361EE', backgroundColor: '#1A2240' },
+  catTileRotating: { borderColor: '#5C3A00', backgroundColor: '#1A1200' },
+  catTileRotatingActive: { borderColor: '#F59E0B', backgroundColor: '#241900' },
+  catEmoji: { fontSize: 24 },
+  catName: { fontSize: 9, color: '#6B7A99', textAlign: 'center', fontWeight: '500' },
   catNameActive: { color: '#7B93FF', fontWeight: '700' },
-  catActiveDot: {
-    position: 'absolute',
-    bottom: 7,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#4361EE',
+  catNameRotating: { color: '#F59E0B' },
+  catActiveDot: { position: 'absolute', bottom: 7, width: 4, height: 4, borderRadius: 2, backgroundColor: '#4361EE' },
+
+  // Quarter badge on rotating tile
+  quarterBadge: {
+    backgroundColor: '#2A1800',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderWidth: 1,
+    borderColor: '#5C3A00',
   },
+  quarterBadgeActive: { backgroundColor: '#3D2500', borderColor: '#F59E0B' },
+  quarterBadgeText: { fontSize: 8, color: '#F59E0B', fontWeight: '800', letterSpacing: 0.5 },
+  quarterBadgeTextActive: { color: '#FCD34D' },
 
   // Merchant search
   searchSection: { paddingHorizontal: 20, marginBottom: 8 },
   searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#161B24',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: '#232B3A',
-    gap: 10,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: '#161B24', borderRadius: 14,
+    paddingHorizontal: 14, borderWidth: 1, borderColor: '#232B3A', gap: 10,
   },
   searchEmoji: { fontSize: 16 },
   searchInput: { flex: 1, paddingVertical: 14, fontSize: 15, color: '#FFFFFF' },
   clearBtn: { fontSize: 14, color: '#6B7A99', paddingLeft: 6 },
   dropdown: {
-    backgroundColor: '#161B24',
-    borderRadius: 14,
-    marginTop: 6,
-    borderWidth: 1,
-    borderColor: '#232B3A',
-    overflow: 'hidden',
+    backgroundColor: '#161B24', borderRadius: 14, marginTop: 6,
+    borderWidth: 1, borderColor: '#232B3A', overflow: 'hidden',
   },
-  dropdownRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 13,
-    gap: 10,
-  },
+  dropdownRow: { flexDirection: 'row', alignItems: 'center', padding: 13, gap: 10 },
   dropdownDivider: { borderBottomWidth: 1, borderBottomColor: '#232B3A' },
   dropdownIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#1E2738',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: '#1E2738', alignItems: 'center', justifyContent: 'center',
   },
+  dropdownIconRotating: { backgroundColor: '#2A1800' },
   dropdownName: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
   dropdownCat: { fontSize: 12, color: '#6B7A99', marginTop: 1 },
+  dropdownRotatingNote: { fontSize: 12, color: '#F59E0B', marginTop: 1, fontWeight: '600' },
   dropdownArrow: { fontSize: 22, color: '#3A4A66' },
   resolvedTag: {
-    marginTop: 10,
-    alignSelf: 'flex-start',
-    backgroundColor: '#1A2240',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: '#2E3F6E',
+    marginTop: 10, alignSelf: 'flex-start',
+    backgroundColor: '#1A2240', borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 6,
+    borderWidth: 1, borderColor: '#2E3F6E',
   },
+  resolvedTagRotating: { backgroundColor: '#2A1800', borderColor: '#F59E0B' },
   resolvedTagText: { color: '#7B93FF', fontWeight: '700', fontSize: 13 },
+  resolvedTagTextRotating: { color: '#F59E0B' },
+
+  // Rotating callout in results
+  rotatingCallout: {
+    backgroundColor: '#1A1200',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#5C3A00',
+    gap: 8,
+  },
+  rotatingCalloutTitle: { fontSize: 13, fontWeight: '800', color: '#F59E0B', marginBottom: 4 },
+  rotatingCalloutRow: { gap: 2 },
+  rotatingCalloutCard: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  rotatingCalloutNote: { fontSize: 12, color: '#C08020' },
+
+  // Per-card merchant note under card visual
+  merchantNote: {
+    backgroundColor: '#0F1A0F',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#1E3A1E',
+  },
+  merchantNoteText: { fontSize: 12, color: '#4CAF50', fontWeight: '600' },
 
   // Results
   results: { paddingHorizontal: 20, marginTop: 16 },
-  resultsLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
+  resultsLabel: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   resultsLabelLine: { flex: 1, height: 1, backgroundColor: '#232B3A' },
   resultsLabelText: { fontSize: 11, color: '#4361EE', fontWeight: '700', letterSpacing: 2 },
 
   // Empty
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 52,
-    paddingHorizontal: 40,
-  },
+  emptyState: { alignItems: 'center', paddingVertical: 52, paddingHorizontal: 40 },
   emptyEmoji: { fontSize: 48, marginBottom: 14 },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#FFFFFF', marginBottom: 8 },
   emptyBody: { fontSize: 14, color: '#6B7A99', textAlign: 'center', lineHeight: 21 },

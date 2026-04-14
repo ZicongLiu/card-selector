@@ -128,8 +128,10 @@ export const PRELOADED_CARDS: CreditCard[] = [
       dining: 3,
       drugstore: 3,
       travel: 5, // via Chase Travel
-      online_shopping: 5, // Q2 2026 rotating 5%: Amazon & Whole Foods
+      rotating: 5, // Q2 2026: Amazon & Whole Foods
     },
+    rotatingMerchants: ['Amazon', 'Whole Foods'],
+    rotatingNote: 'Q2 2026 (Apr–Jun): Amazon & Whole Foods',
     defaultReward: 1,
     isPreloaded: true,
   },
