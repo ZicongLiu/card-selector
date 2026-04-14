@@ -9,7 +9,12 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
+// Use web-native clipboard API (works in all modern browsers)
+async function setStringAsync(text: string): Promise<void> {
+  if (navigator?.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+  }
+}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCardStore } from '../store/useCardStore';
 import { encodeWallet, decodeWallet, walletSummary } from '../lib/token';
@@ -38,7 +43,7 @@ export function SettingsScreen() {
   useEffect(() => { refreshToken(); }, [refreshToken]);
 
   const handleCopy = async () => {
-    await Clipboard.setStringAsync(token);
+    await setStringAsync(token);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
