@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   Modal,
   ScrollView,
 } from 'react-native';
@@ -20,14 +19,12 @@ export function MyCardsScreen() {
   const [pickerCard, setPickerCard] = useState<CreditCard | null>(null);
 
   const handleDelete = (card: CreditCard) => {
-    if (card.isPreloaded) {
-      Alert.alert('Built-in Card', 'Pre-loaded cards cannot be removed.');
-      return;
+    const label = card.isPreloaded
+      ? `Remove "${card.name}" from your wallet? You can re-add it any time from Browse Cards.`
+      : `Remove "${card.name}" from your wallet?`;
+    if (window.confirm(label)) {
+      removeCard(card.id);
     }
-    Alert.alert('Remove Card', `Remove "${card.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => removeCard(card.id) },
-    ]);
   };
 
   const handleChoiceSelect = (cardId: string, key: CategoryKey) => {
@@ -57,11 +54,9 @@ export function MyCardsScreen() {
             </View>
             <View style={styles.headerRight}>
               <Text style={[styles.issuerText, { color: item.textColor }]}>{item.issuer}</Text>
-              {!item.isPreloaded && (
-                <TouchableOpacity onPress={() => handleDelete(item)} style={styles.deleteBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={[styles.deleteIcon, { color: item.textColor }]}>✕</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity onPress={() => handleDelete(item)} style={styles.deleteBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={[styles.deleteIcon, { color: item.textColor }]}>✕</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
