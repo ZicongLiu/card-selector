@@ -3,22 +3,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CreditCard, CategoryKey } from '../types';
 import { PRELOADED_CARDS } from '../data/cards';
 
-const STORAGE_KEY = 'wallet_cards'; // stores IDs of selected preloaded + full custom cards
+const STORAGE_KEY = 'wallet_cards';
+
+interface StoredWallet {
+  selectedIds: string[];
+  customCards: CreditCard[];
+}
 
 interface CardStore {
-  cards: CreditCard[]; // only cards the user has added to their wallet
+  cards: CreditCard[];
   loaded: boolean;
   loadCards: () => Promise<void>;
+  loadFromProfile: (selectedIds: string[], customCards: CreditCard[]) => Promise<void>;
   addCard: (card: CreditCard) => void;
   removeCard: (id: string) => void;
   hasCard: (id: string) => boolean;
   getRankedCards: (category: CategoryKey) => { card: CreditCard; multiplier: number }[];
   getBestCard: (category: CategoryKey) => { card: CreditCard; multiplier: number } | null;
-}
-
-interface StoredWallet {
-  selectedIds: string[];         // IDs of chosen preloaded cards
-  customCards: CreditCard[];     // fully stored custom cards
 }
 
 export const useCardStore = create<CardStore>((set, get) => ({
@@ -38,6 +39,17 @@ export const useCardStore = create<CardStore>((set, get) => ({
     } catch {
       set({ cards: [], loaded: true });
     }
+  },
+
+  /** Apply a profile fetched from Supabase (overwrites local) */
+  loadFromProfile: async (selectedIds, customCards) => {
+    const selected = PRELOADED_CARDS.filter((c) => selectedIds.includes(c.id));
+    const cards = [...selected, ...(customCards ?? [])];
+    set({ cards, loaded: true });
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ selectedIds, customCards: customCards ?? [] })
+    );
   },
 
   addCard: (card) => {
@@ -71,5 +83,11 @@ export const useCardStore = create<CardStore>((set, get) => ({
 function _persist(cards: CreditCard[]) {
   const selectedIds = cards.filter((c) => c.isPreloaded).map((c) => c.id);
   const customCards = cards.filter((c) => !c.isPreloaded);
-  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ selectedIds, customCards }));
+  const wallet = { selectedIds, customCards };
+  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(wallet));
+
+  // Sync to Supabase (lazy import to avoid circular deps)
+  import('./useProfileStore').then(({ useProfileStore }) => {
+    useProfileStore.getState().pushWallet(wallet);
+  });
 }

@@ -9,7 +9,9 @@ import { MyCardsScreen } from './src/screens/MyCardsScreen';
 import { AddCardScreen } from './src/screens/AddCardScreen';
 import { BrowseCardsScreen } from './src/screens/BrowseCardsScreen';
 import { BenefitsScreen } from './src/screens/BenefitsScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
 import { useCardStore } from './src/store/useCardStore';
+import { useProfileStore } from './src/store/useProfileStore';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -33,8 +35,12 @@ function CardsStack() {
 
 export default function App() {
   const loadCards = useCardStore((s) => s.loadCards);
+  const initProfile = useProfileStore((s) => s.init);
 
-  useEffect(() => { loadCards(); }, []);
+  useEffect(() => {
+    initProfile();
+    loadCards();
+  }, []);
 
   return (
     <NavigationContainer theme={DarkTheme}>
@@ -76,6 +82,14 @@ export default function App() {
           options={{
             title: 'My Cards',
             tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>🗂️</Text>,
+          }}
+        />
+        <Tab.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{
+            title: 'Settings',
+            tabBarIcon: ({ focused }) => <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>⚙️</Text>,
           }}
         />
       </Tab.Navigator>
