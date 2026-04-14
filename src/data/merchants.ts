@@ -19,7 +19,7 @@ export const MERCHANTS: MerchantEntry[] = [
   { name: "Denny's", category: 'dining' },
 
   // Groceries
-  { name: 'Whole Foods', category: 'groceries' },
+  { name: 'Whole Foods', category: 'online_shopping' }, // Q2 2026: rotating 5% with Amazon on Freedom Flex
   { name: 'Trader Joe\'s', category: 'groceries' },
   { name: 'Kroger', category: 'groceries' },
   { name: 'Safeway', category: 'groceries' },
