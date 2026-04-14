@@ -25,7 +25,7 @@ interface RotatingTile {
 
 // Unified tile for both standard categories and rotating merchants
 type UnifiedTile =
-  | { kind: 'category'; key: CategoryKey; label: string; icon: string; bestRate: number }
+  | { kind: 'category'; key: CategoryKey; label: string; icon: string; bestRate: number; isRotatingBonus: boolean }
   | { kind: 'rotating'; merchant: string; rate: number; cards: CreditCard[]; note: string };
 
 export function HomeScreen() {
@@ -64,22 +64,47 @@ export function HomeScreen() {
     return Array.from(map.values());
   }, [cards]);
 
-  // Unified sorted tile list: all categories + rotating merchants, sorted by best rate
+  // Merchant emoji map for rotating merchant tiles
+  const MERCHANT_ICON: Record<string, string> = {
+    'Amazon': '📦',
+    'Whole Foods': '🥦',
+    'Target': '🎯',
+    'Walmart': '🛒',
+    'Gas Stations': '⛽',
+    'Grocery Stores': '🛒',
+    'Restaurants': '🍽️',
+  };
+
+  // Unified sorted tile list: all categories + rotating, sorted by best rate
   const sortedTiles = useMemo<UnifiedTile[]>(() => {
     if (cards.length === 0) {
-      // No wallet: just show categories in default order with no rates
       return CATEGORIES.map((cat) => ({
         kind: 'category' as const,
         key: cat.key,
         label: cat.label,
         icon: cat.icon,
         bestRate: 0,
+        isRotatingBonus: false,
       }));
     }
 
+    // For each category, compute best rate across all cards
+    // — includes rotatingCategories cards and choiceCategory cards
     const categoryTiles: UnifiedTile[] = CATEGORIES.map((cat) => {
-      const bestRate = Math.max(...cards.map((c) => c.rewards[cat.key] ?? c.defaultReward));
-      return { kind: 'category', key: cat.key, label: cat.label, icon: cat.icon, bestRate };
+      let bestRate = 0;
+      let isRotatingBonus = false;
+      for (const card of cards) {
+        let rate = card.rewards[cat.key] ?? card.defaultReward;
+        if (card.rotatingCategories?.includes(cat.key)) {
+          rate = card.rewards.rotating ?? card.defaultReward;
+          if (rate > bestRate) isRotatingBonus = true;
+        }
+        if (card.choiceCategory === cat.key && card.choiceRate !== undefined) {
+          rate = Math.max(rate, card.choiceRate);
+        }
+        if (rate > bestRate) bestRate = rate;
+      }
+      return { kind: 'category', key: cat.key, label: cat.label, icon: cat.icon, bestRate, isRotatingBonus };
     });
 
     const rotatingUnified: UnifiedTile[] = rotatingTiles.map((t) => ({
@@ -200,22 +225,28 @@ export function HomeScreen() {
               return (
                 <TouchableOpacity
                   key={tile.key}
-                  style={[styles.catTile, active && styles.catTileActive]}
+                  style={[styles.catTile, active && styles.catTileActive, tile.isRotatingBonus && styles.catTileRotatingBonus, active && tile.isRotatingBonus && styles.catTileRotatingBonusActive]}
                   onPress={() => handleCategorySelect(tile.key)}
                   activeOpacity={0.75}
                 >
                   <Text style={styles.catEmoji}>{tile.icon}</Text>
                   <Text style={[styles.catName, active && styles.catNameActive]}>{tile.label}</Text>
                   {cards.length > 0 && (
-                    <Text style={[styles.catRate, active && styles.catRateActive]}>
+                    <Text style={[styles.catRate, active && styles.catRateActive, tile.isRotatingBonus && styles.catRateRotating]}>
                       {tile.bestRate}x
                     </Text>
                   )}
-                  {active && <View style={styles.catActiveDot} />}
+                  {tile.isRotatingBonus && (
+                    <View style={styles.rotatingBadge}>
+                      <Text style={styles.rotatingBadgeText}>⚡</Text>
+                    </View>
+                  )}
+                  {active && <View style={[styles.catActiveDot, tile.isRotatingBonus && { backgroundColor: '#F59E0B' }]} />}
                 </TouchableOpacity>
               );
             } else {
               const active = selectedRotatingMerchant === tile.merchant;
+              const icon = MERCHANT_ICON[tile.merchant] ?? '🏪';
               return (
                 <TouchableOpacity
                   key={`rotating-${tile.merchant}`}
@@ -223,13 +254,16 @@ export function HomeScreen() {
                   onPress={() => handleRotatingSelect(tile.merchant)}
                   activeOpacity={0.75}
                 >
-                  <Text style={styles.catEmoji}>⚡</Text>
+                  <Text style={styles.catEmoji}>{icon}</Text>
                   <Text style={[styles.catName, styles.catNameRotating, active && styles.catNameRotatingActive]} numberOfLines={1}>
                     {tile.merchant}
                   </Text>
                   <Text style={[styles.catRate, styles.catRateRotating, active && styles.catRateRotatingActive]}>
                     {tile.rate}x
                   </Text>
+                  <View style={styles.rotatingBadge}>
+                    <Text style={styles.rotatingBadgeText}>⚡</Text>
+                  </View>
                   {active && <View style={[styles.catActiveDot, { backgroundColor: '#F59E0B' }]} />}
                 </TouchableOpacity>
               );
@@ -409,6 +443,8 @@ const styles = StyleSheet.create({
     position: 'relative', gap: 1, paddingHorizontal: 4,
   },
   catTileActive: { borderColor: '#4361EE', backgroundColor: '#1A2240' },
+  catTileRotatingBonus: { borderColor: '#5C3A00' },
+  catTileRotatingBonusActive: { borderColor: '#F59E0B', backgroundColor: '#1A1200' },
   catTileRotating: { backgroundColor: '#1A1200', borderColor: '#5C3A00' },
   catTileRotatingActive: { borderColor: '#F59E0B', backgroundColor: '#241900' },
   catEmoji: { fontSize: 22 },
@@ -421,6 +457,8 @@ const styles = StyleSheet.create({
   catRateRotating: { color: '#F59E0B' },
   catRateRotatingActive: { color: '#FCD34D' },
   catActiveDot: { position: 'absolute', bottom: 6, width: 4, height: 4, borderRadius: 2, backgroundColor: '#4361EE' },
+  rotatingBadge: { position: 'absolute', top: 6, right: 6, backgroundColor: '#2A1800', borderRadius: 5, paddingHorizontal: 3, paddingVertical: 1 },
+  rotatingBadgeText: { fontSize: 8, lineHeight: 10 },
 
   // Merchant search
   searchSection: { paddingHorizontal: 20, marginBottom: 8 },

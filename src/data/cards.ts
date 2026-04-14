@@ -202,9 +202,10 @@ export const PRELOADED_CARDS: CreditCard[] = [
     color: '#E87722',
     textColor: '#FFFFFF',
     rewards: {
-      // Rotating 5% - showing Q2 2026 categories
-      dining: 5,
+      rotating: 5, // Q2 2026: Restaurants & Drug Stores
     },
+    rotatingCategories: ['dining', 'drugstore'],
+    rotatingNote: 'Q2 2026 (Apr–Jun): Restaurants & Drug Stores',
     defaultReward: 1,
     isPreloaded: true,
   },
@@ -228,7 +229,10 @@ export const PRELOADED_CARDS: CreditCard[] = [
     issuer: 'Bank of America',
     color: '#E31837',
     textColor: '#FFFFFF',
-    rewards: { groceries: 2 },
+    rewards: { groceries: 2 }, // groceries & wholesale clubs always 2%
+    choiceCategories: ['gas', 'online_shopping', 'dining', 'travel', 'drugstore', 'other'],
+    choiceRate: 3,
+    // choiceCategory is set by the user in My Cards
     defaultReward: 1,
     isPreloaded: true,
   },

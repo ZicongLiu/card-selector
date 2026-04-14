@@ -8,14 +8,14 @@ export type CategoryKey =
   | 'streaming'
   | 'drugstore'
   | 'transit'
-  | 'rotating'   // Quarterly rotating bonus categories (card-specific merchants)
+  | 'rotating'   // Quarterly rotating bonus (rate stored under this key)
   | 'other';
 
 export interface Category {
   key: CategoryKey;
   label: string;
   icon: string;
-  quarterLabel?: string; // e.g. "Q2 2026" shown as badge on tile
+  quarterLabel?: string;
 }
 
 export interface CreditCard {
@@ -27,15 +27,27 @@ export interface CreditCard {
   rewards: Partial<Record<CategoryKey, number>>;
   defaultReward: number;
   isPreloaded?: boolean;
-  /** Merchants that qualify for the rotating bonus this quarter */
+
+  // ── Rotating bonus (quarterly, card-specific) ──────────────────────────────
+  /** Specific merchant names that earn the rotating rate (e.g. Freedom Flex) */
   rotatingMerchants?: string[];
-  /** Human-readable note shown in results, e.g. "Q2 2026: Amazon & Whole Foods" */
+  /** Entire CategoryKeys that earn the rotating rate (e.g. Discover: dining, drugstore) */
+  rotatingCategories?: CategoryKey[];
+  /** Human-readable note, e.g. "Q2 2026 (Apr–Jun): Restaurants & Drug Stores" */
   rotatingNote?: string;
+
+  // ── User-selectable bonus category (e.g. BofA Customized Cash) ────────────
+  /** The categories the user can pick from for their bonus rate */
+  choiceCategories?: CategoryKey[];
+  /** The rate earned on the chosen category */
+  choiceRate?: number;
+  /** The category the user has currently selected */
+  choiceCategory?: CategoryKey;
 }
 
 export interface MerchantEntry {
   name: string;
   category: CategoryKey;
-  /** Shown as a badge in the search dropdown, e.g. "⚡ Q2 bonus" */
+  /** Badge shown in search dropdown, e.g. "⚡ Q2 bonus" */
   rotatingNote?: string;
 }
