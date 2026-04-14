@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,19 +19,23 @@ const BENEFIT_CHECKS_KEY = 'benefit_checks';
 export function SettingsScreen() {
   const { getWalletSnapshot, loadFromProfile, cards } = useCardStore();
 
-  // Token is always freshly derived from the current wallet state
-  const token = useMemo(() => {
-    const snap = getWalletSnapshot();
-    return encodeWallet(snap);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cards]); // recompute whenever wallet changes
-
+  const [token, setToken] = useState('');
   const [importInput, setImportInput] = useState('');
   const [importing, setImporting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
-  const [preview, setPreview] = useState<string | null>(null); // decoded summary before confirm
+  const [preview, setPreview] = useState<string | null>(null);
+
+  // Rebuild token whenever wallet changes (includes benefit checks from storage)
+  const refreshToken = useCallback(async () => {
+    const snap = getWalletSnapshot();
+    const raw = await AsyncStorage.getItem(BENEFIT_CHECKS_KEY);
+    const benefitChecks: Record<string, string> = raw ? JSON.parse(raw) : {};
+    setToken(encodeWallet({ ...snap, benefitChecks }));
+  }, [cards]);
+
+  useEffect(() => { refreshToken(); }, [refreshToken]);
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(token);
@@ -68,10 +72,13 @@ export function SettingsScreen() {
       return;
     }
 
-    const { selectedIds, customCards, preferences } = result.data;
+    const { selectedIds, customCards, preferences, benefitChecks } = result.data;
     await loadFromProfile(selectedIds, customCards, preferences);
-    // Benefit checks are not encoded in the token (device-specific timestamps)
-    // TODO #6: restore benefit checks from Supabase when connected
+    // Restore benefit checks — auto-reset logic in BenefitsScreen discards stale ones
+    if (Object.keys(benefitChecks).length > 0) {
+      await AsyncStorage.setItem(BENEFIT_CHECKS_KEY, JSON.stringify(benefitChecks));
+    }
+    await refreshToken();
 
     setImportInput('');
     setPreview(null);
@@ -80,7 +87,7 @@ export function SettingsScreen() {
     setTimeout(() => setImportSuccess(''), 4000);
   };
 
-  const cardCount = getWalletSnapshot().selectedIds.length + getWalletSnapshot().customCards.length;
+  const cardCount = cards.length;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
