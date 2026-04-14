@@ -359,6 +359,34 @@ export const PRELOADED_CARDS: CreditCard[] = [
     isPreloaded: true,
   },
 
+  // ── Robinhood ─────────────────────────────────────────────────────────────
+  {
+    id: 'robinhood-gold',
+    name: 'Gold Card',
+    issuer: 'Robinhood',
+    color: '#1A1A1A',
+    textColor: '#FFD700',
+    rewards: {},          // 3% on everything (requires Gold membership $5/mo)
+    defaultReward: 3,
+    isPreloaded: true,
+  },
+
+  // ── Bilt ──────────────────────────────────────────────────────────────────
+  {
+    id: 'bilt-mastercard',
+    name: 'Bilt Mastercard',
+    issuer: 'Bilt',
+    color: '#1C1C2E',
+    textColor: '#FFFFFF',
+    rewards: {
+      dining: 3,
+      travel: 2,
+      rent: 1,            // 1x on rent, no transaction fee (up to 100k pts/yr)
+    },
+    defaultReward: 1,
+    isPreloaded: true,
+  },
+
   // ── Wyndham ───────────────────────────────────────────────────────────────
   {
     id: 'barclays-wyndham-earner',

@@ -10,6 +10,7 @@ export const CATEGORIES: Category[] = [
   { key: 'streaming',       label: 'Streaming',       icon: '📺' },
   { key: 'drugstore',       label: 'Drugstore',       icon: '💊' },
   { key: 'transit',         label: 'Transit',         icon: '🚇' },
+  { key: 'rent',            label: 'Rent',            icon: '🏠' },
   // 'rotating' is derived dynamically from wallet cards in HomeScreen — not listed here
   { key: 'other',           label: 'Other',           icon: '🏷️' },
 ];
