@@ -8,6 +8,7 @@ export type CategoryKey =
   | 'streaming'
   | 'drugstore'
   | 'transit'
+  | 'rent'
   | 'rotating'   // Quarterly rotating bonus (rate stored under this key)
   | 'other';
 

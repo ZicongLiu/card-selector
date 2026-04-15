@@ -4,6 +4,7 @@ import { CreditCard, CategoryKey } from '../types';
 import { PRELOADED_CARDS } from '../data/cards';
 
 const STORAGE_KEY = 'wallet_cards';
+const CHOICES_KEY = 'wallet_choices'; // separate key so choice edits never race with card-list writes
 
 interface StoredWallet {
   selectedIds: string[];
@@ -45,10 +46,19 @@ export const useCardStore = create<CardStore>((set, get) => ({
 
   loadCards: async () => {
     try {
-      const json = await AsyncStorage.getItem(STORAGE_KEY);
+      const [json, choicesJson] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEY),
+        AsyncStorage.getItem(CHOICES_KEY),
+      ]);
       if (!json) { set({ cards: [], loaded: true }); return; }
       const wallet: StoredWallet = JSON.parse(json);
-      const prefs = wallet.preferences ?? {};
+      // Merge preferences: dedicated CHOICES_KEY takes precedence (written separately, never races)
+      const basePrefs = wallet.preferences ?? {};
+      const extraChoices: Record<string, CategoryKey> = choicesJson ? JSON.parse(choicesJson) : {};
+      const prefs: Record<string, { cc?: CategoryKey }> = { ...basePrefs };
+      for (const [id, cc] of Object.entries(extraChoices)) {
+        prefs[id] = { ...prefs[id], cc };
+      }
       const selected = PRELOADED_CARDS
         .filter((c) => wallet.selectedIds.includes(c.id))
         .map((c) => applyPrefs(c, prefs[c.id]));
@@ -84,6 +94,14 @@ export const useCardStore = create<CardStore>((set, get) => ({
     const cards = get().cards.map((c) => c.id === id ? { ...c, ...patch } : c);
     set({ cards });
     _persist(cards);
+    // Also write choiceCategory to its own dedicated key so it never races with card-list writes
+    if (patch.choiceCategory !== undefined) {
+      AsyncStorage.getItem(CHOICES_KEY).then((raw) => {
+        const choices: Record<string, CategoryKey> = raw ? JSON.parse(raw) : {};
+        choices[id] = patch.choiceCategory!;
+        AsyncStorage.setItem(CHOICES_KEY, JSON.stringify(choices));
+      });
+    }
   },
 
   hasCard: (id) => get().cards.some((c) => c.id === id),
